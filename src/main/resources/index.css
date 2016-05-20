@@ -1,0 +1,43 @@
+body {
+  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  font-size: 14px;
+}
+
+table#list {
+  border-spacing: 0;
+}
+
+table#list > thead > tr > th {
+  text-align: left;
+}
+
+table#list th.icon, table#list th.name, table#list th.last-modified, table#list th.size, table#list th.size-units {
+  border-bottom: solid 1px #aaaaaa;
+}
+table#list td.icon, table#list td.name, table#list td.last-modified, table#list td.size, table#list td.size-units {
+  border-bottom: solid 1px #fafafa;
+}
+
+table#list td.icon {
+  padding-right: 3px;
+}
+table#list td.icon img {
+  position: relative;
+  top: 3px;
+}
+
+table#list .last-modified {
+  padding-left: 20px;
+}
+
+table#list .size {
+  text-align: right;
+  padding-left: 20px;
+}
+table#list th.size {
+  text-align: left;
+}
+
+table#list .size-units {
+  padding-left: 4px;
+}
