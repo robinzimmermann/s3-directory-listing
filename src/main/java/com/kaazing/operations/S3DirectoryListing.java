@@ -211,8 +211,8 @@ public class S3DirectoryListing {
 		System.out.println("");
 		System.out.println("  s3-directory-listing");
 		System.out.println("      --key XXXXXXXXXXXXXXXXXXXX");
-		System.out.println("      --secret ihx3nCJKCp+ubYX6u29wb70OraTJ6uiGaZYKCpER");
-		System.out.println("      --bucket my.bucket.com");
+		System.out.println("      --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+		System.out.println("      --bucket cdn.example.com");
 		System.out.println("      --root public/releases");
 	}
 

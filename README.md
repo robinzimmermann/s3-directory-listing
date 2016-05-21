@@ -23,9 +23,9 @@ Example:
 ```bash
 java -jar target/uber-s3-directory-listing-1.0-SNAPSHOT.jar
    --key XXXXXXXXXXXXXXXXXXXX
-   --secret ihx3nCJKCp+ubYX6u29wb70OraTJ6uiGaZYKCpER
-   --bucket cdn.kaazing.com
-   --root releases
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+   --bucket cdn.example.com
+   --root public/releases
 ```
 
 You can also specify the value of the `Cache-Control: max-age` directive of the index.html files, and of static resources like the CSS file, images, etc.
