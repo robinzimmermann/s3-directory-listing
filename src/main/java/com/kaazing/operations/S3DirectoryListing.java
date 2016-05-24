@@ -47,7 +47,7 @@ public class S3DirectoryListing {
 
 	private Level logLevel = Level.INFO;
 
-	private boolean listingOnly = false;
+	private boolean indexing = false;
 
 	/**
 	 * Cache-Control: max-age directive for the index.html files. In seconds.
@@ -76,11 +76,11 @@ public class S3DirectoryListing {
 		LogManager.getRootLogger().setLevel(logLevel);
 		readS3RootFolder();
 
-		if (listingOnly) {
-			printDirectoryList(folders.get("/"));
-		} else {
+		if (indexing) {
 			generateIndexFiles();
 			uploadResourceFiles();
+		} else {
+			printDirectoryList(folders.get("/"));
 		}
 
 		logger.info("\nDone");
@@ -96,13 +96,12 @@ public class S3DirectoryListing {
 		options.addOption("b", "bucket", true, "AWS S3 bucket name");
 		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory. Default is /");
 		options.addOption("h", "max-age-html", true,
-				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge);
+				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge+".\nIgnored if -i is not set");
 		options.addOption("e", "max-age-resources", true,
-				"The Cache-Control: max-age value for static files (in seconds). Default is " + resourcesMaxAge
-						+ "\ne.g. CSS files, images, etc");
+				"The Cache-Control: max-age value for static CSS, image, etc files (in seconds). Default is " + resourcesMaxAge
+						+ "\nIgnored if -i is not set.");
 		options.addOption("l", "log-level", true, "Logging level: fatal, error, warn, info (default), debug, trace");
-		options.addOption("d", "directory-listing", false,
-				"Show a directory listing of all folders, files, and their metadata\nNo files will be uploaded. These flags will be ignored: -h -e");
+		options.addOption("i", "index", true, "Upload index files to make the S3 folders browsable\nWARNING: This will override existing index.html files in every directory!");
 		options.addOption("?", "help", false, "Show usage help");
 
 		try {
@@ -185,8 +184,8 @@ public class S3DirectoryListing {
 				}
 			}
 
-			if (line.hasOption("directory-listing")) {
-				listingOnly = true;
+			if (line.hasOption("index")) {
+				indexing = true;
 			}
 
 		} catch (ParseException exp) {
@@ -248,7 +247,7 @@ public class S3DirectoryListing {
 		final BasicAWSCredentials awsCreds = new BasicAWSCredentials(key, secret);
 		s3client = new AmazonS3Client(awsCreds);
 
-		logger.info(String.format("Reading %s/%s%n", bucket, rootFolder));
+		logger.info(String.format("Scanning %s/%s...%n", bucket, rootFolder));
 
 		try {
 			final ListObjectsV2Request req = new ListObjectsV2Request().withBucketName(bucket).withPrefix(rootFolder)
@@ -263,10 +262,10 @@ public class S3DirectoryListing {
 					// Is this key a folder or file?
 					if (objectSummary.getKey().substring(objectSummary.getKey().length() - 1).equals("/")) {
 						S3Folder folder = addFolder(objectSummary.getKey());
-						logger.info(String.format("Adding folder %s", folder.getPath()));
+						logger.info(String.format("Reading folder: %s", folder.getPath()));
 					} else {
 						S3File file = new S3File(objectSummary.getKey(), objectSummary.getSize(), objectSummary.getLastModified());
-						logger.info(String.format("Adding file   %s", file.getPath()));
+						logger.info(String.format("Reading file:   %s", file.getPath()));
 						// Extract the folder name holding this file. Handle special case if the parent is the root.
 						int pos = objectSummary.getKey().lastIndexOf('/');
 						String folderName;
@@ -276,13 +275,6 @@ public class S3DirectoryListing {
 							folderName = objectSummary.getKey().substring(0, pos + 1);
 						}
 						S3Folder folder = addFolder(folderName);
-						// if (folderName.equals(rootFolder)) {
-						// // Don't add excluded files
-						// if (rootExcludeList.containsKey(file.getFilename())) {
-						// logger.trace(String.format("Excluding %s", file.getFilename()));
-						// continue;
-						// }
-						// }
 						folder.addFile(file);
 					}
 
@@ -547,11 +539,7 @@ public class S3DirectoryListing {
 	 * Write out the directory structure, starting from the given root.
 	 */
 	private void printDirectoryList(S3Folder root) {
-		if (root == null) {
-			logger.info(String.format("%s - No such folder!", root));
-			return;
-		}
-		logger.info(String.format("%s", root));
+		logger.info(String.format("%s", root.getPath()));
 		printDirectoryList(root, 1);
 	}
 
