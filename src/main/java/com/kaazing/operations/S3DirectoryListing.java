@@ -130,9 +130,15 @@ public class S3DirectoryListing {
 				rootFolder = line.getOptionValue("root").trim();
 				if (rootFolder.equals("/")) {
 					rootFolder = ""; // This is how to represent the / directory
-				} else if (rootFolder.charAt(rootFolder.length() - 1) != '/') {
-					// This program expects the bucket name to have a trailing slash.
-					rootFolder += "/";
+				} else {
+					// S3 expects the folder name to not have a starting slash.
+					if (rootFolder.charAt(0) == '/') {
+						rootFolder = rootFolder.substring(1);
+					}
+					// S3 expects the folder name to have a trailing slash.
+					if (rootFolder.charAt(rootFolder.length() - 1) != '/') {
+						rootFolder += "/";
+					}
 				}
 			}
 
@@ -561,7 +567,8 @@ public class S3DirectoryListing {
 		// List files second.
 		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
 			S3File file = fileEntry.getValue();
-			logger.info(String.format("%s%s, %s, %s", padding, file.getPath(), S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified()));
+			logger.info(String.format("%s%s, %s, %s", padding, file.getPath(), S3File.humanReadableByteCount(file.getSize(), true),
+					file.getLastModified()));
 		}
 	}
 
