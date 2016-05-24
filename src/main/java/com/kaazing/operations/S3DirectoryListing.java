@@ -38,7 +38,7 @@ public class S3DirectoryListing {
 	private String secret;
 
 	private String bucket;
-	private String rootFolder;
+	private String rootFolder = ""; // This means the overall root directory: "/"
 
 	private String indexFilename = "index.html";
 	private String cssFilename = "index.css";
@@ -46,6 +46,8 @@ public class S3DirectoryListing {
 	private String folderUpIconFilename = "folder-up-icon.png";
 
 	private Level logLevel = Level.INFO;
+
+	private boolean listingOnly = false;
 
 	/**
 	 * Cache-Control: max-age directive for the index.html files. In seconds.
@@ -73,8 +75,15 @@ public class S3DirectoryListing {
 		}
 		LogManager.getRootLogger().setLevel(logLevel);
 		readS3RootFolder();
-		generateIndexFiles();
-		uploadResourceFiles();
+
+		if (listingOnly) {
+			printDirectoryList(folders.get("/"));
+		} else {
+			generateIndexFiles();
+			uploadResourceFiles();
+		}
+
+		logger.info("\nDone");
 	}
 
 	private boolean parseCommandLine(String[] args) {
@@ -85,13 +94,15 @@ public class S3DirectoryListing {
 		options.addOption("k", "key", true, "AWS access key");
 		options.addOption("s", "secret", true, "AWS secret access key");
 		options.addOption("b", "bucket", true, "AWS S3 bucket name");
-		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory");
+		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory. Default is /");
 		options.addOption("h", "max-age-html", true,
 				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge);
 		options.addOption("e", "max-age-resources", true,
 				"The Cache-Control: max-age value for static files (in seconds). Default is " + resourcesMaxAge
 						+ "\ne.g. CSS files, images, etc");
 		options.addOption("l", "log-level", true, "Logging level: fatal, error, warn, info (default), debug, trace");
+		options.addOption("d", "directory-listing", false,
+				"Show a directory listing of all folders, files, and their metadata\nNo files will be uploaded. These flags will be ignored: -h -e");
 		options.addOption("?", "help", false, "Show usage help");
 
 		try {
@@ -117,7 +128,9 @@ public class S3DirectoryListing {
 
 			if (line.hasOption("root")) {
 				rootFolder = line.getOptionValue("root").trim();
-				if (rootFolder.charAt(rootFolder.length() - 1) != '/') {
+				if (rootFolder.equals("/")) {
+					rootFolder = ""; // This is how to represent the / directory
+				} else if (rootFolder.charAt(rootFolder.length() - 1) != '/') {
 					// This program expects the bucket name to have a trailing slash.
 					rootFolder += "/";
 				}
@@ -164,6 +177,10 @@ public class S3DirectoryListing {
 					logLevel = Level.INFO;
 					logger.info("Unknown log level specified. Setting to INFO");
 				}
+			}
+
+			if (line.hasOption("directory-listing")) {
+				listingOnly = true;
 			}
 
 		} catch (ParseException exp) {
@@ -225,15 +242,6 @@ public class S3DirectoryListing {
 		final BasicAWSCredentials awsCreds = new BasicAWSCredentials(key, secret);
 		s3client = new AmazonS3Client(awsCreds);
 
-		// Certain files will get stored in the root folder, such as the CSS file and icon images. They should not appear in the
-		// directory listing and will be excluded.
-		final HashMap<String, String> rootExcludeList = new HashMap<String, String>();
-
-		rootExcludeList.put(indexFilename, indexFilename);
-		rootExcludeList.put(cssFilename, cssFilename);
-		rootExcludeList.put(folderIconFilename, folderIconFilename);
-		rootExcludeList.put(folderUpIconFilename, folderUpIconFilename);
-
 		logger.info(String.format("Reading %s/%s%n", bucket, rootFolder));
 
 		try {
@@ -245,6 +253,7 @@ public class S3DirectoryListing {
 
 				for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
 
+					logger.trace(String.format("Found key: %s", objectSummary.getKey()));
 					// Is this key a folder or file?
 					if (objectSummary.getKey().substring(objectSummary.getKey().length() - 1).equals("/")) {
 						S3Folder folder = addFolder(objectSummary.getKey());
@@ -252,17 +261,22 @@ public class S3DirectoryListing {
 					} else {
 						S3File file = new S3File(objectSummary.getKey(), objectSummary.getSize(), objectSummary.getLastModified());
 						logger.info(String.format("Adding file   %s", file.getPath()));
-						// Extra the folder name holding this file
+						// Extract the folder name holding this file. Handle special case if the parent is the root.
 						int pos = objectSummary.getKey().lastIndexOf('/');
-						String folderName = objectSummary.getKey().substring(0, pos + 1);
-						S3Folder folder = addFolder(folderName);
-						if (folderName.equals(rootFolder)) {
-							// Don't add excluded files
-							if (rootExcludeList.containsKey(file.getFilename())) {
-								logger.trace(String.format("Excluding %s", file.getFilename()));
-								continue;
-							}
+						String folderName;
+						if (pos == -1) {
+							folderName = "/";
+						} else {
+							folderName = objectSummary.getKey().substring(0, pos + 1);
 						}
+						S3Folder folder = addFolder(folderName);
+						// if (folderName.equals(rootFolder)) {
+						// // Don't add excluded files
+						// if (rootExcludeList.containsKey(file.getFilename())) {
+						// logger.trace(String.format("Excluding %s", file.getFilename()));
+						// continue;
+						// }
+						// }
 						folder.addFile(file);
 					}
 
@@ -302,12 +316,23 @@ public class S3DirectoryListing {
 			logger.trace(String.format("%s already in list", folderName));
 		}
 
-		int secondLastSlash = folderName.lastIndexOf('/', folderName.length() - 2);
-		if (secondLastSlash == -1) {
-			logger.trace(String.format("%s has no parent, must be the root", folderName));
+		// Special case, if this is /, then there is no need to proceed, which would be an
+		// infinite recursion.
+		if (folder.getPath().equals("/")) {
 			return folder;
 		}
-		String parentName = folderName.substring(0, secondLastSlash + 1);
+
+		// Figure out the parent folder.
+
+		int secondLastSlash = folderName.lastIndexOf('/', folderName.length() - 2);
+		String parentName;
+		if (secondLastSlash == -1) {
+			logger.trace(String.format("%s has no parent, so the parent must be the root", folderName));
+			parentName = "/";
+			// return folder;
+		} else {
+			parentName = folderName.substring(0, secondLastSlash + 1);
+		}
 		logger.trace(String.format("%s has parent folder, %s, adding it to list", folderName, parentName));
 		S3Folder parent = addFolder(parentName);
 		parent.addFolder(folder);
@@ -370,8 +395,8 @@ public class S3DirectoryListing {
 		sb.append("<head>");
 		sb.append("  <meta charset=\"utf-8\">");
 		sb.append("  <link rel=\"shortcut icon\" type=\"image/png\" href=\"//kaazing.com/static/images/favicon-kaazing.png\">");
-		sb.append("  <title>Kaazing Releases</title>");
-		sb.append("  <link rel=\"stylesheet\" href=\"//cdn.kaazing.com/releases/index.css\">");
+		sb.append("  <title>Directory Listing</title>");
+		sb.append("  <link rel=\"stylesheet\" href=\"//" + bucket + "/" + rootFolder + "index.css\">");
 		sb.append("</head>");
 		sb.append("");
 		sb.append("<body>");
@@ -394,8 +419,8 @@ public class S3DirectoryListing {
 		// Let users navigate up to the parent folder, but not past the root.
 		if (!folder.getPath().equals(rootFolder)) {
 			sb.append(String.format("    <tr>"));
-			sb.append(String
-					.format("      <td class=\"icon\"><a href=\"..\"><img src=\"//cdn.kaazing.com/releases/"+folderUpIconFilename+"\"></a></td>"));
+			sb.append(String.format("      <td class=\"icon\"><a href=\"..\"><img src=\"//" + bucket + "/" + rootFolder
+					+ folderUpIconFilename + "\"></a></td>"));
 			sb.append(String.format("      <td class=\"name\"><a href=\"..\">Parent Directory</a></td>"));
 			sb.append(String.format("      <td class=\"size\"></td>"));
 			sb.append(String.format("      <td class=\"size-units\"></td>"));
@@ -411,9 +436,8 @@ public class S3DirectoryListing {
 			String childFolderEnding = childFolderName.substring(secondLastSlash + 1, childFolderName.length() - 1);
 
 			sb.append(String.format("    <tr>"));
-			sb.append(String.format(
-					"      <td class=\"icon\"><a href=\"%s\"><img src=\"//cdn.kaazing.com/releases/"+folderIconFilename+"\"></a></td>",
-					childFolderEnding));
+			sb.append(String.format("      <td class=\"icon\"><a href=\"%s\"><img src=\"//" + bucket + "/" + rootFolder
+					+ folderIconFilename + "\"></a></td>", childFolderEnding));
 			sb.append(String.format("      <td class=\"name\"><a href=\"%s\">%s</a></td>", childFolderEnding, childFolderEnding));
 			sb.append(String.format("      <td class=\"size\"></td>"));
 			sb.append(String.format("      <td class=\"size-units\"></td>"));
@@ -422,9 +446,27 @@ public class S3DirectoryListing {
 		}
 
 		// List files next.
+
+		// Certain files will get stored in the root folder, such as the CSS file and icon images. They should not appear in the
+		// directory listing and will be excluded. Also, the index.html file in each folder should not be displayed.
+		final HashMap<String, String> rootExcludeList = new HashMap<String, String>();
+
+		rootExcludeList.put(indexFilename, indexFilename);
+		rootExcludeList.put(cssFilename, cssFilename);
+		rootExcludeList.put(folderIconFilename, folderIconFilename);
+		rootExcludeList.put(folderUpIconFilename, folderUpIconFilename);
+
 		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
+
 			S3File file = fileEntry.getValue();
-			String size = humanReadableByteCount(file.getSize(), true);
+
+			// Don't show excluded files
+			if (rootExcludeList.containsKey(file.getFilename())) {
+				logger.trace(String.format("Excluding %s", file.getFilename()));
+				continue;
+			}
+
+			String size = S3File.humanReadableByteCount(file.getSize(), true);
 			int spacePos = size.indexOf(' ');
 			String sizeUnits = size.substring(spacePos + 1, size.length());
 			size = size.substring(0, spacePos);
@@ -496,22 +538,31 @@ public class S3DirectoryListing {
 	}
 
 	/**
-	 * Convert a number into a human redable byte count. e.g. 1024 into 1 kB.
-	 * 
-	 * Source: http://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
-	 * 
-	 * @param bytes
-	 *            the number to convert
-	 * @param si
-	 *            true for SI, false for binary units (e.g. MiB vs MB)
+	 * Write out the directory structure, starting from the given root.
 	 */
-	public static String humanReadableByteCount(long bytes, boolean si) {
-		int unit = si ? 1000 : 1024;
-		if (bytes < unit)
-			return bytes + " B";
-		int exp = (int) (Math.log(bytes) / Math.log(unit));
-		String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
-		return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
+	private void printDirectoryList(S3Folder root) {
+		if (root == null) {
+			logger.info(String.format("%s - No such folder!", root));
+			return;
+		}
+		logger.info(String.format("%s", root));
+		printDirectoryList(root, 1);
+	}
+
+	private void printDirectoryList(S3Folder folder, int level) {
+		String padding = String.format("%1$" + (level * 2) + "s", " ");
+		// List folders first.
+		for (Entry<String, S3Folder> folderEntry : folder.getFolders().entrySet()) {
+			S3Folder childFolder = folderEntry.getValue();
+			String childFolderPath = childFolder.getPath();
+			logger.info(String.format("%s%s", padding, childFolderPath));
+			printDirectoryList(childFolder, level + 1);
+		}
+		// List files second.
+		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
+			S3File file = fileEntry.getValue();
+			logger.info(String.format("%s%s, %s, %s", padding, file.getPath(), S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified()));
+		}
 	}
 
 }
