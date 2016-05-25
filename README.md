@@ -63,7 +63,7 @@ java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
 
 ### Browsable index
 
-You can also have the program upload index.html files to each folder that provides a directory listing. See [Kaazing releases](http://cdn.kaazing.com/releases/)) for an example.
+You can also have the program upload index.html files to each folder that provides a directory listing. See [Kaazing releases](http://cdn.kaazing.com/releases/) for an example.
 
 **WARNING: This will write over any index.html files you already have – in every folder you specify. Be careful!**
 
