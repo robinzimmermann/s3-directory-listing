@@ -1,7 +1,7 @@
 package com.kaazing.operations;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -74,6 +74,7 @@ public class S3DirectoryListing {
 			return;
 		}
 		LogManager.getRootLogger().setLevel(logLevel);
+
 		readS3RootFolder();
 
 		if (indexing) {
@@ -96,12 +97,14 @@ public class S3DirectoryListing {
 		options.addOption("b", "bucket", true, "AWS S3 bucket name");
 		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory. Default is /");
 		options.addOption("h", "max-age-html", true,
-				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge+".\nIgnored if -i is not set");
+				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge
+						+ ".\nIgnored if -i is not set");
 		options.addOption("e", "max-age-resources", true,
 				"The Cache-Control: max-age value for static CSS, image, etc files (in seconds). Default is " + resourcesMaxAge
 						+ "\nIgnored if -i is not set.");
 		options.addOption("l", "log-level", true, "Logging level: fatal, error, warn, info (default), debug, trace");
-		options.addOption("i", "index", true, "Upload index files to make the S3 folders browsable\nWARNING: This will override existing index.html files in every directory!");
+		options.addOption("i", "index", false,
+				"Upload index files to make the S3 folders browsable\nWARNING: This will override existing index.html files in every directory!");
 		options.addOption("?", "help", false, "Show usage help");
 
 		try {
@@ -225,7 +228,7 @@ public class S3DirectoryListing {
 
 	private void showUsage(Options options) {
 		HelpFormatter formatter = new HelpFormatter();
-		formatter.setWidth(120);
+		formatter.setWidth(132);
 		System.out.println("");
 		formatter.printHelp("s3-directory-listing", options);
 		System.out.println("");
@@ -247,25 +250,26 @@ public class S3DirectoryListing {
 		final BasicAWSCredentials awsCreds = new BasicAWSCredentials(key, secret);
 		s3client = new AmazonS3Client(awsCreds);
 
-		logger.info(String.format("Scanning %s/%s...%n", bucket, rootFolder));
+		logger.info(String.format("Scanning %s/%s...", bucket, rootFolder));
 
 		try {
 			final ListObjectsV2Request req = new ListObjectsV2Request().withBucketName(bucket).withPrefix(rootFolder)
-					.withMaxKeys(10);
+					.withMaxKeys(5);
 			ListObjectsV2Result result;
 			do {
 				result = s3client.listObjectsV2(req);
 
 				for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
+					logger.debug(String.format("Found key: %s", objectSummary.getKey()));
 
-					logger.trace(String.format("Found key: %s", objectSummary.getKey()));
 					// Is this key a folder or file?
 					if (objectSummary.getKey().substring(objectSummary.getKey().length() - 1).equals("/")) {
 						S3Folder folder = addFolder(objectSummary.getKey());
-						logger.info(String.format("Reading folder: %s", folder.getPath()));
+						logger.trace(String.format("Reading folder: %s", folder.getPath()));
 					} else {
-						S3File file = new S3File(objectSummary.getKey(), objectSummary.getSize(), objectSummary.getLastModified());
-						logger.info(String.format("Reading file:   %s", file.getPath()));
+						ObjectMetadata om = s3client.getObjectMetadata(bucket, objectSummary.getKey());
+						S3File file = new S3File(objectSummary.getKey(), om);
+						logger.trace(String.format("Reading file:   %s", file.getPath()));
 						// Extract the folder name holding this file. Handle special case if the parent is the root.
 						int pos = objectSummary.getKey().lastIndexOf('/');
 						String folderName;
@@ -279,6 +283,7 @@ public class S3DirectoryListing {
 					}
 
 				}
+
 				// The S3 API returns paginated results. So keep looping through each page until we're done.
 				req.setContinuationToken(result.getNextContinuationToken());
 			} while (result.isTruncated() == true);
@@ -344,7 +349,11 @@ public class S3DirectoryListing {
 		logger.info("");
 		for (Entry<String, S3Folder> entry : folders.entrySet()) {
 			S3Folder folder = entry.getValue();
-			logger.info(String.format("Generating index file for %s", folder.getPath()));
+			if (folder.getPath().equals("/")) {
+				// Root is a special case, ignore it
+				continue;
+			}
+			logger.info(String.format("Uploading index file for %s", folder.getPath()));
 			uploadIndexFile(folder);
 		}
 	}
@@ -491,34 +500,33 @@ public class S3DirectoryListing {
 	 */
 	private void uploadResourceFiles() {
 		logger.info("");
-		ClassLoader classLoader = getClass().getClassLoader();
-
-		File cssfile = new File(classLoader.getResource(cssFilename).getFile());
-		uploadFile(cssfile, "text/css", resourcesMaxAge);
-
-		File folderIconFile = new File(classLoader.getResource(folderIconFilename).getFile());
-		uploadFile(folderIconFile, "text/png", resourcesMaxAge);
-
-		File folderUpIconFile = new File(classLoader.getResource(folderUpIconFilename).getFile());
-		uploadFile(folderUpIconFile, "text/png", resourcesMaxAge);
+		uploadResourceFile(cssFilename, "text/css", resourcesMaxAge);
+		uploadResourceFile(folderIconFilename, "image/png", resourcesMaxAge);
+		uploadResourceFile(folderUpIconFilename, "image/png", resourcesMaxAge);
 	}
 
 	/**
-	 * Generic method to upload a file to S3.
+	 * Generic-ish method to upload a resource file to S3.
 	 */
-	private void uploadFile(File file, String contentType, long maxAge) {
+	private void uploadResourceFile(String filename, String contentType, long maxAge) {
 		try {
-			String destPath = rootFolder + file.getName();
-			PutObjectRequest request = new PutObjectRequest(bucket, destPath, file);
-			logger.info(String.format("Uploading %s", destPath));
+
+			String keyname = rootFolder + filename;
+
+			logger.info(String.format("Uploading %s", keyname));
+
+			InputStream is = getClass().getClassLoader().getResourceAsStream(filename);
+
 			ObjectMetadata om = new ObjectMetadata();
-			om.setContentLength(file.length());
 			om.setContentType(contentType);
+			om.setContentLength(is.available());
 			if (maxAge >= 0) {
 				om.setCacheControl("max-age=" + maxAge);
 			}
-			request.setMetadata(om);
-			s3client.putObject(request.withMetadata(om));
+			
+			PutObjectRequest request = new PutObjectRequest(bucket, keyname, is, om);
+			s3client.putObject(request);
+
 		} catch (AmazonServiceException ase) {
 			logger.info("Caught an AmazonServiceException, which " + "means your request made it "
 					+ "to Amazon S3, but was rejected with an error response" + " for some reason.");
@@ -532,6 +540,9 @@ public class S3DirectoryListing {
 					+ "an internal error while trying to " + "communicate with S3, "
 					+ "such as not being able to access the network.");
 			logger.info("Error Message: " + ace.getMessage());
+		} catch (IOException e) {
+			e.printStackTrace();
+			logger.error(String.format("Error reading %s", filename), e);
 		}
 	}
 
@@ -539,6 +550,9 @@ public class S3DirectoryListing {
 	 * Write out the directory structure, starting from the given root.
 	 */
 	private void printDirectoryList(S3Folder root) {
+		logger.info("Directory Listing");
+		logger.info("Name, size, last modified, cache-control");
+		logger.info("----------------------------------------");
 		logger.info(String.format("%s", root.getPath()));
 		printDirectoryList(root, 1);
 	}
@@ -555,8 +569,8 @@ public class S3DirectoryListing {
 		// List files second.
 		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
 			S3File file = fileEntry.getValue();
-			logger.info(String.format("%s%s, %s, %s", padding, file.getPath(), S3File.humanReadableByteCount(file.getSize(), true),
-					file.getLastModified()));
+			logger.info(String.format("%s%s, %s, %s, %s", padding, file.getPath(),
+					S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified(), file.getCacheControl()));
 		}
 	}
 

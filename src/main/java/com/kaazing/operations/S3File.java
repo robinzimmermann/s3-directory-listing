@@ -2,6 +2,8 @@ package com.kaazing.operations;
 
 import java.util.Date;
 
+import com.amazonaws.services.s3.model.ObjectMetadata;
+
 /**
  * Representation of a file from S3.
  */
@@ -12,19 +14,16 @@ public class S3File {
 	 */
 	private final String path;
 
-	private final long size;
-	
-	private final Date lastModified;
-
 	/**
 	 * Just the filename portion of the overall path. name has the entire path.
 	 */
 	private final String filename;
 
-	public S3File(String path, long size, Date lastModified) {
+	private final ObjectMetadata metadata;
+
+	public S3File(String path, ObjectMetadata metadata) {
 		this.path = path;
-		this.size = size;
-		this.lastModified = lastModified;
+		this.metadata = metadata;
 
 		int secondLastSlash = path.lastIndexOf('/', path.length() - 2);
 		filename = path.substring(secondLastSlash + 1, path.length());
@@ -38,11 +37,15 @@ public class S3File {
 	}
 
 	public long getSize() {
-		return size;
+		return metadata.getContentLength();
 	}
 
 	public Date getLastModified() {
-		return lastModified;
+		return metadata.getLastModified();
+	}
+
+	public String getCacheControl() {
+		return metadata.getCacheControl();
 	}
 
 	/**
@@ -53,7 +56,7 @@ public class S3File {
 	}
 
 	/**
-	 * Convert a number into a human redable byte count. e.g. 1024 into 1 kB.
+	 * Convert a number into a human readable byte count. e.g. 1024 into 1 kB.
 	 * 
 	 * Source: http://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
 	 * 
