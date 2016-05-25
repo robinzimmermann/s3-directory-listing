@@ -551,7 +551,7 @@ public class S3DirectoryListing {
 	 */
 	private void printDirectoryList(S3Folder root) {
 		logger.info("Directory Listing");
-		logger.info("Name, size, last modified, cache-control");
+		logger.info("Name, size, last modified, cache-control, content-type");
 		logger.info("----------------------------------------");
 		logger.info(String.format("%s", root.getPath()));
 		printDirectoryList(root, 1);
@@ -569,8 +569,8 @@ public class S3DirectoryListing {
 		// List files second.
 		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
 			S3File file = fileEntry.getValue();
-			logger.info(String.format("%s%s, %s, %s, %s", padding, file.getPath(),
-					S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified(), file.getCacheControl()));
+			logger.info(String.format("%s%s, %s, %s, %s, %s", padding, file.getPath(),
+					S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified(), file.getContentType(), file.getCacheControl()));
 		}
 	}
 

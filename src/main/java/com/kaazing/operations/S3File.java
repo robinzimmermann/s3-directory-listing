@@ -47,6 +47,10 @@ public class S3File {
 	public String getCacheControl() {
 		return metadata.getCacheControl();
 	}
+	
+	public String getContentType() {
+		return metadata.getContentType();
+	}
 
 	/**
 	 * Get just the filename, without the parent path.
