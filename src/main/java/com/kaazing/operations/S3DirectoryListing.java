@@ -52,7 +52,7 @@ public class S3DirectoryListing {
 	/**
 	 * Cache-Control: max-age directive for the index.html files. In seconds.
 	 */
-	private long htmlMaxAge = 2;
+	private long indexMaxAge = 2;
 
 	/**
 	 * Cache-Control: max-age directive for the static resource files. e.g. CSS file, images, etc. In seconds.
@@ -96,8 +96,8 @@ public class S3DirectoryListing {
 		options.addOption("s", "secret", true, "AWS secret access key");
 		options.addOption("b", "bucket", true, "AWS S3 bucket name");
 		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory. Default is /");
-		options.addOption("h", "max-age-html", true,
-				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + htmlMaxAge
+		options.addOption("h", "max-age-index", true,
+				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + indexMaxAge
 						+ ".\nIgnored if -i is not set");
 		options.addOption("e", "max-age-resources", true,
 				"The Cache-Control: max-age value for static CSS, image, etc files (in seconds). Default is " + resourcesMaxAge
@@ -144,11 +144,11 @@ public class S3DirectoryListing {
 				}
 			}
 
-			if (line.hasOption("max-age-html")) {
+			if (line.hasOption("max-age-index")) {
 				try {
-					htmlMaxAge = Long.valueOf(line.getOptionValue("max-age-html").trim());
+					indexMaxAge = Long.valueOf(line.getOptionValue("max-age-index").trim());
 				} catch (NumberFormatException e) {
-					logger.info(String.format("You specified an invalid value for max-age-html. Using default of %d", htmlMaxAge));
+					logger.info(String.format("You specified an invalid value for max-age-index. Using default of %d", indexMaxAge));
 				}
 			}
 
@@ -371,7 +371,7 @@ public class S3DirectoryListing {
 			ObjectMetadata om = new ObjectMetadata();
 			om.setContentType("text/html");
 			om.setContentLength(bytes.length);
-			om.setCacheControl("max-age=" + htmlMaxAge);
+			om.setCacheControl("max-age=" + indexMaxAge);
 			String keyname = folder.getPath() + indexFilename;
 			PutObjectRequest request = new PutObjectRequest(bucket, keyname, is, om);
 			s3client.putObject(request);
