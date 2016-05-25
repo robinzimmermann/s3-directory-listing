@@ -96,7 +96,7 @@ public class S3DirectoryListing {
 		options.addOption("s", "secret", true, "AWS secret access key");
 		options.addOption("b", "bucket", true, "AWS S3 bucket name");
 		options.addOption("r", "root", true, "AWS S3 key that serves as the root directory. Default is /");
-		options.addOption("h", "max-age-index", true,
+		options.addOption("m", "max-age-index", true,
 				"The Cache-Control: max-age value for the index.html files (in seconds). Default is " + indexMaxAge
 						+ ".\nIgnored if -i is not set");
 		options.addOption("e", "max-age-resources", true,
