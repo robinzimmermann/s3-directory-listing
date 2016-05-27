@@ -77,11 +77,18 @@ public class S3DirectoryListing {
 
 		readS3RootFolder();
 
-		if (indexing) {
-			generateIndexFiles();
-			uploadResourceFiles();
+		if (folders.size() == 0) {
+			logger.info(String.format("Could not find %s/%s", bucket, rootFolder));
+			logger.info("Are the bucket name and folder name correct?");
 		} else {
-			printDirectoryList(folders.get("/"));
+
+			if (indexing) {
+				generateIndexFiles();
+				uploadResourceFiles();
+			} else {
+				printDirectoryList(folders.get("/"));
+			}
+			
 		}
 
 		logger.info("\nDone");
@@ -523,7 +530,7 @@ public class S3DirectoryListing {
 			if (maxAge >= 0) {
 				om.setCacheControl("max-age=" + maxAge);
 			}
-			
+
 			PutObjectRequest request = new PutObjectRequest(bucket, keyname, is, om);
 			s3client.putObject(request);
 
@@ -570,7 +577,8 @@ public class S3DirectoryListing {
 		for (Entry<String, S3File> fileEntry : folder.getFiles().entrySet()) {
 			S3File file = fileEntry.getValue();
 			logger.info(String.format("%s%s, %s, %s, %s, %s", padding, file.getPath(),
-					S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified(), file.getContentType(), file.getCacheControl()));
+					S3File.humanReadableByteCount(file.getSize(), true), file.getLastModified(), file.getContentType(),
+					file.getCacheControl()));
 		}
 	}
 
