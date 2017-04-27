@@ -31,10 +31,10 @@ This command will print out a recursive directory listing of the `public/release
 
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   --bucket cdn.example.com
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX  \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  \
+   --bucket cdn.example.com  \
    --root public/releases
 ```
 
@@ -45,19 +45,19 @@ A leading slash and/or trailing slash for the `--root` parameter are optional.
 This command will print out a recursive directory listing of the entire bucket:
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   --bucket cdn.example.com
-   --root /
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+   --bucket cdn.example.com \
+   --root
 ```
 
 So will this:
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
    --bucket cdn.example.com
 ```
 
@@ -70,11 +70,11 @@ You can also have the program upload index.html files to each folder that provid
 To create and upload the index files, add the `--index` parameter. This will put an `index.html` file in the `public/releases` directory, and all of its sub-directories:
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   --bucket cdn.example.com
-   --root public/releases
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+   --bucket cdn.example.com \
+   --root public/releases \
    --index
 ```
 
@@ -89,13 +89,13 @@ In addition, it will also put the following static resource files in the `--root
 You can also specify the value of the `Cache-Control: max-age` directive of the `index.html` files, and of static resource files:
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   --bucket cdn.example.com
-   --root public/releases
-   --index
-   --max-age-index 60
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+   --bucket cdn.example.com \
+   --root public/releases \
+   --index \
+   --max-age-index 60 \
    --max-age-resources 86400
 ```
 
@@ -106,13 +106,13 @@ This will set `cache-control: max-age=60` for the `index.html` files, and `cache
 The program will write a log to `s3-directory-listing.log` at the `INFO` level. You can change the log level with the `--log-level` parameter:
 
 ```bash
-java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar
-   --key XXXXXXXXXXXXXXXXXXXX
-   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-   --bucket cdn.example.com
-   --root public/releases
-   --index
-   --max-age-index 60
-   --max-age-resources 86400
+java -jar target/s3-directory-listing-1.0-SNAPSHOT.jar \
+   --key XXXXXXXXXXXXXXXXXXXX \
+   --secret XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX \
+   --bucket cdn.example.com \
+   --root public/releases \
+   --index \
+   --max-age-index 60 \
+   --max-age-resources 86400 \
    --log-level trace
 ```
